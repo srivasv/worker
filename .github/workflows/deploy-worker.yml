@@ -1,0 +1,52 @@
+name: Deploy Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Verify route is bound and Worker responds
+        env:
+          # Must match the hostname in wrangler.toml's route.
+          PROBE_HOST: pkg.wispr-flow-linux.dev
+        run: |
+          # Wait briefly for deploy + DNS propagation.
+          sleep 30
+
+          # The Worker proxies the metadata path through to gh-pages. Until the
+          # GATED publish layer is enabled and a release is cut, gh-pages has no
+          # content, so a 404 here is EXPECTED and acceptable -- it still proves
+          # the route is bound and the Worker is executing at the edge. Only a
+          # 5xx / 52x / timeout indicates the route isn't bound or the Worker
+          # errored. Once publishing is live this path returns 200.
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            --max-time 30 \
+            "https://${PROBE_HOST}/dists/stable/InRelease")
+          echo "Probe status: ${status}"
+          if [[ "$status" =~ ^[234] ]]; then
+            echo "Route bound, Worker responding (status ${status})."
+            exit 0
+          fi
+          echo "::error::Worker probe at ${PROBE_HOST} returned ${status}"
+          echo "::error::Expected 2xx/3xx/4xx (route bound + Worker executing)"
+          exit 1

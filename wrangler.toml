@@ -1,0 +1,22 @@
+# Cloudflare Worker configuration for the APT/DNF binary redirect.
+#
+# The Worker serves repo metadata from the gh-pages origin of the main repo
+# (wispr-flow-linux/wispr-flow-linux) and 302-redirects .deb/.rpm binary
+# requests to that repo's GitHub Release assets, which sidesteps GitHub's
+# 100MB per-file push cap on gh-pages (Electron builds get close).
+#
+# The publish layer that populates gh-pages + Releases is GATED behind
+# vars.PUBLISH_ENABLED in the main repo (pending Wispr Flow ToS). Until a
+# release is cut, this Worker deploys and binds the domain but has no content
+# to serve -- the deploy probe is 404-tolerant for exactly this reason.
+
+name = "wispr-flow-linux-pkg-redirect"
+main = "src/worker.js"
+compatibility_date = "2026-06-04"
+
+# Custom Domain (auto-DNS) routing. Cloudflare creates the DNS record
+# automatically when this is deployed; no separate dummy A record needed.
+# Requires wispr-flow-linux.dev's DNS to be managed on this Cloudflare account.
+routes = [
+	{ pattern = "pkg.wispr-flow-linux.dev", custom_domain = true },
+]
