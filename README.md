@@ -50,6 +50,6 @@ Manual deploy: `wrangler deploy`.
 ## Status
 
 The publish layer that populates `gh-pages` + Releases lives in the main repo
-and is **gated** behind `vars.PUBLISH_ENABLED` (pending Wispr Flow's ToS). Until
-a release is cut, this Worker binds the domain but has no content to serve; the
-deploy probe tolerates a 404 on the metadata path for that reason.
+(`ci.yml`, on a `v*` tag). Until the first release is cut, this Worker binds the
+domain and serves the bootstrap metadata (`conf/`) but has no package indexes
+yet; the deploy probe tolerates a 404 on the `dists/` path for that reason.
