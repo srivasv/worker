@@ -1,55 +1,24 @@
-# wispr-flow-linux pkg worker
+# Wispr Flow Linux APT Worker
 
-Cloudflare Worker that fronts the unofficial Wispr Flow Linux APT/DNF repo at
-`pkg.wispr-flow-linux.dev`.
+Cloudflare Worker fronting the APT repository at `pkg.grimwulf.dev`.
 
-```
-apt/dnf  ->  https://pkg.wispr-flow-linux.dev/...
-                 │
-                 ├─ /dists/*, /KEY.gpg, /rpm/*/repodata/*   ->  200 (passthrough
-                 │                                               to gh-pages via
-                 │                                               raw.githubusercontent.com)
-                 └─ /pool/main/w/.../*.deb, /rpm/*/*.rpm     ->  302 to the main
-                                                                 repo's GitHub
-                                                                 Release asset
+```text
+APT client -> pkg.grimwulf.dev
+  metadata and KEY.gpg -> srivasv/wispr-flow-linux gh-pages
+  .deb files           -> srivasv/wispr-flow-linux GitHub Releases
 ```
 
-Binary bytes flow directly from `release-assets.githubusercontent.com` to the
-user and never cross Cloudflare — the Worker only emits a few-hundred-byte
-redirect responses. This sidesteps GitHub's 100 MB per-file push cap on the
-`gh-pages` branch.
-
-## How it maps a request to a release
-
-Release tags are `v<repoVer>+wispr<wisprVer>`. The package filename embeds both
-versions, so the Worker reconstructs the tag from the path:
-
-| Request path | Redirects to |
-|---|---|
-| `/pool/main/w/wispr-flow/wispr-flow_1.5.619-1.0.0_amd64.deb` | `.../releases/download/v1.0.0+wispr1.5.619/wispr-flow_1.5.619-1.0.0_amd64.deb` |
-| `/rpm/x86_64/wispr-flow-1.5.619-1.0.0-1.x86_64.rpm` | `.../releases/download/v1.0.0+wispr1.5.619/wispr-flow-1.5.619-1.0.0-1.x86_64.rpm` |
-
-Everything else passes through to
-`raw.githubusercontent.com/wispr-flow-linux/wispr-flow-linux/gh-pages`.
+The Worker redirects binary requests instead of proxying their contents, so
+package bytes flow directly from GitHub's release CDN.
 
 ## Deploy
 
-Automatic via `.github/workflows/deploy-worker.yml` on push to `main`. Requires
-two repo secrets:
+Pushes to `main` deploy through `.github/workflows/deploy-worker.yml`. The
+repository needs these Actions secrets:
 
-- `CLOUDFLARE_API_TOKEN` — scoped to the "Edit Cloudflare Workers" template
-  (Workers Scripts Edit, Account Settings Read, Workers Routes Edit).
-- `CLOUDFLARE_ACCOUNT_ID`.
+- `CLOUDFLARE_API_TOKEN` — Workers Scripts Write and Account Settings Read for
+  the selected account, plus Workers Routes Write for the `grimwulf.dev` zone.
+- `CLOUDFLARE_ACCOUNT_ID` — the Cloudflare account containing that zone.
 
-`wispr-flow-linux.dev`'s DNS must be managed on the same Cloudflare account so
-`custom_domain = true` in `wrangler.toml` can auto-create the
-`pkg.wispr-flow-linux.dev` record.
-
-Manual deploy: `wrangler deploy`.
-
-## Status
-
-The publish layer that populates `gh-pages` + Releases lives in the main repo
-(`ci.yml`, on a `v*` tag). Until the first release is cut, this Worker binds the
-domain and serves the bootstrap metadata (`conf/`) but has no package indexes
-yet; the deploy probe tolerates a 404 on the `dists/` path for that reason.
+The Custom Domain in `wrangler.toml` creates the `pkg.grimwulf.dev` DNS record
+and certificate automatically; do not create an A or CNAME record manually.

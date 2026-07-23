@@ -28,7 +28,7 @@ jobs:
       - name: Verify route is bound and Worker responds
         env:
           # Must match the hostname in wrangler.toml's route.
-          PROBE_HOST: pkg.wispr-flow-linux.dev
+          PROBE_HOST: pkg.grimwulf.dev
         run: |
           # Wait briefly for deploy + DNS propagation.
           sleep 30
